@@ -166,7 +166,8 @@ function Render:compute_wrap_layout()
     end
 
     local win_width = env.win.width(self.context.win)
-    local remaining_width = math.max(win_width - self:indent_width(), 1)
+    local remaining_width =
+        math.max(win_width - self:indent_width() - self:indent():size(), 1)
     local mtw = self.config.max_table_width
     local available
     if mtw < 0 then
@@ -750,6 +751,9 @@ function Render:wrapped_slots(text, win_width)
     local showbreak = env.win.get(self.context.win, 'showbreak')
     local breakindent = env.win.get(self.context.win, 'breakindent') == true
     local indent = breakindent and str.spaces('start', text) or 0
+    -- The indent module's inline virtual text occupies columns on the first
+    -- screen line of the row, so the raw text wraps that much earlier.
+    local first_width = math.max(win_width - self:indent():size(), 1)
     local continuation_width =
         math.max(win_width - str.width(tostring(showbreak)) - indent, 1)
 
@@ -770,7 +774,7 @@ function Render:wrapped_slots(text, win_width)
     local first = true
     while index <= #chars do
         slots[#slots + 1] = chars[index].col
-        local width = first and win_width or continuation_width
+        local width = first and first_width or continuation_width
         local used = 0
         local next_index = index
         local break_index = nil ---@type integer?
@@ -865,7 +869,7 @@ function Render:wrapped()
         local slot = slots[i]
         if slot then
             self.marks:add(self.config, 'table_border', slot.row, slot.col, {
-                virt_text = line:get(),
+                virt_text = self:indent():line(true):extend(line):get(),
                 virt_text_pos = 'overlay',
                 virt_text_win_col = 0,
                 hl_mode = 'combine',
