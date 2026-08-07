@@ -757,7 +757,7 @@ function Render:wrapped_slots(text, win_width)
     local continuation_width =
         math.max(win_width - str.width(tostring(showbreak)) - indent, 1)
 
-    local chars = {} ---@type { col: integer, text: string, width: integer }[]
+    local chars = {} ---@type { col: integer, text: string, width: integer, concealed: boolean? }[]
     local bytes = vim.str_utf_pos(text)
     for index, start_byte in ipairs(bytes) do
         local end_byte = index < #bytes and bytes[index + 1] - 1 or #text
@@ -768,6 +768,7 @@ function Render:wrapped_slots(text, win_width)
             width = str.width(char),
         }
     end
+
 
     local slots = {} ---@type integer[]
     local index = 1
@@ -788,9 +789,11 @@ function Render:wrapped_slots(text, win_width)
                 break_index = next_index
             end
             next_index = next_index + 1
-            if used >= width then
-                break
-            end
+            -- No early break when used reaches width exactly: a row filled
+            -- to capacity can still end on a following break char, which
+            -- Neovim leaves hanging at the boundary. Cutting the scan short
+            -- rewinds the wrap one word early and lands every later overlay
+            -- one screen row off.
         end
         if next_index > #chars then
             break
