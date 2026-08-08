@@ -499,8 +499,18 @@ function Render:run()
     end
 
     self:delimiter()
-    for _, row in ipairs(self.data.rows) do
+    for i, row in ipairs(self.data.rows) do
         self:row(row)
+        -- Rows 2..n are data rows; rule between each consecutive pair. The
+        -- header/data boundary is already drawn by the delimiter row.
+        if self.config.row_separators and i > 1 and i < #self.data.rows then
+            self.marks:add(self.config, 'virtual_lines', row.node.start_row, 0, {
+                virt_lines = {
+                    self:indent():line(true):extend(self:separator_line()):get(),
+                },
+                virt_lines_above = false,
+            })
+        end
     end
     if self.config.border_enabled and self.data.layout.valid then
         self:border()
@@ -569,6 +579,22 @@ function Render:border_line(above)
     local text = chars[1] .. table.concat(parts, chars[2]) .. chars[3]
     local highlight = above and self.config.head or self.config.row
     return self:line():pad(self:indent_width()):text(text, highlight)
+end
+
+---A horizontal rule between two data rows, built from the delimiter's
+---junction characters so it meets the column pipes. Column widths already
+---include padding (and, when wrapping, the capped layout widths), so this
+---matches the delimiter and border lines without recomputation.
+---@private
+---@return render.md.Line
+function Render:separator_line()
+    local border = self.config.border
+    local icon = border[11]
+    local parts = iter.list.map(self.data.cols, function(col)
+        return icon:rep(col.width)
+    end)
+    local text = border[4] .. table.concat(parts, border[5]) .. border[6]
+    return self:line():pad(self:indent_width()):text(text, self.config.row)
 end
 
 ---@private
@@ -834,6 +860,11 @@ function Render:wrapped()
         vim.list_extend(visual, self:row_wrapped_lines(row, r))
         if r == 1 then
             visual[#visual + 1] = self:delimiter_line(self:delimiter_text())
+        elseif self.config.row_separators and r < #self.data.rows then
+            -- Separators join the sequential visual-line stream like the
+            -- delimiter above; lines beyond the raw screen rows spill into
+            -- the trailing virt_lines block, so nothing is lost.
+            visual[#visual + 1] = self:separator_line()
         end
     end
     if self.config.border_enabled then
