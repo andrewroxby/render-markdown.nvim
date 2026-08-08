@@ -259,6 +259,22 @@ function Render:compute_wrap_layout()
         row_heights[r] = max_lines
     end
 
+    -- Phantom-row trigger. Neovim allocates soft-wrap screen rows by RAW byte
+    -- width; concealed text is blanked without reflowing. A row whose visible
+    -- content fits the layout but whose raw bytes overflow the window still
+    -- owns blank phantom screen rows, and only this machinery's overlays
+    -- reclaim them — without it the table shows a blank hole per such row.
+    -- Long concealed link destinations and in-band annotation markup are the
+    -- common causes.
+    if not needs_wrap then
+        for _, row in ipairs(self.data.rows) do
+            if str.width(row.node.text) > remaining_width then
+                needs_wrap = true
+                break
+            end
+        end
+    end
+
     if not needs_wrap then
         return no_wrap
     end
